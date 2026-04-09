@@ -21,10 +21,7 @@
         <div class="hero-brand">
           <div class="hero-logos">
             <div class="logo-shell logo-shell-main">
-              <img class="logo-comp" src="./assets/logo-competencia.png" alt="Kilo Speedway Throwdown 2026" loading="eager" decoding="async">
-            </div>
-            <div class="logo-shell logo-shell-ranger">
-              <img class="logo-ranger" src="./assets/logo-ranger.png" alt="Ranger" loading="eager" decoding="async">
+              <img class="logo-comp" src="./assets/2logo-competencia.png" alt="Kilo Speedway Throwdown 2026" loading="eager" decoding="async">
             </div>
           </div>
         </div>
@@ -37,11 +34,21 @@
         </div>
 
         <div class="hero-links">
-          <a class="cta primary" href="https://events.pukiebook.com/event/891" target="_blank" rel="noopener">Evento Pukie</a>
-          <a class="cta" href="https://www.instagram.com/teamthrowdown_cl/" target="_blank" rel="noopener">Instagram oficial</a>
-          <a class="cta" href="https://tr.ee/ko-Lyjycgc" target="_blank" rel="noopener">App Pukie</a>
-          <a class="cta" href="https://apps.apple.com/co/app/pukiebook/id1499548137" target="_blank" rel="noopener">iPhone</a>
-          <a class="cta" href="https://play.google.com/store/search?q=Pukiebook&hl=es" target="_blank" rel="noopener">Android</a>
+          <a class="cta cta-featured" href="https://www.instagram.com/teamthrowdown_cl/" target="_blank" rel="noopener">
+            <span class="cta-kicker">Instagram</span>
+            <span class="cta-label">Instagram oficial de Kilo</span>
+          </a>
+          <a class="cta primary cta-main" href="https://tr.ee/ko-Lyjycgc" target="_blank" rel="noopener">
+            <span class="cta-app-icon-wrap">
+              <img class="cta-app-icon" src="./assets/logoIconSmall.png" alt="Pukie app" loading="lazy" decoding="async">
+            </span>
+            <span class="cta-label">¡Sigue el evento desde tu celular!</span>
+            <span class="cta-note">Descarga la app Pukie disponible para iPhone y Android.</span>
+          </a>
+          <div class="cta-group-label">Descarga la app para información, premios y seguir a tu equipo o atleta favorito</div>
+          <a class="cta cta-secondary" href="https://tr.ee/ko-Lyjycgc" target="_blank" rel="noopener">App Pukie</a>
+          <a class="cta cta-secondary" href="https://apps.apple.com/co/app/pukiebook/id1499548137" target="_blank" rel="noopener">iPhone</a>
+          <a class="cta cta-secondary" href="https://play.google.com/store/search?q=Pukiebook&hl=es" target="_blank" rel="noopener">Android</a>
         </div>
       </div>
     </section>
@@ -49,14 +56,13 @@
     <section class="panel">
       <div class="panel-head">
         <h2 class="panel-title">Panel de búsqueda</h2>
-        <div class="chip" id="countSearch">0 filas</div>
       </div>
 
       <div class="search-area">
         <p class="lead">La búsqueda prioriza coincidencias en <strong>Atleta 1</strong> y <strong>Atleta 2</strong>. También sirve para equipo, box, categoría y evento.</p>
 
         <div class="fields">
-          <input id="searchInput" class="field search" type="text" placeholder="Buscar por atleta, equipo o box...">
+          <input id="searchInput" class="field search" type="text" placeholder="Buscar por atleta, equipo, box, lane o número...">
           <select id="categorySelect" class="field"></select>
           <select id="boxSelect" class="field"></select>
           <select id="sortSelect" class="field">
@@ -68,12 +74,15 @@
           <button id="clearBtn" class="field action-btn">Limpiar filtros</button>
         </div>
 
-        <div class="quick">
-          <button data-quick="Box Ranger">Box Ranger</button>
-          <button data-quick="DUPLAS MIXTAS ROOKIE">Duplas Mixtas Rookie</button>
-          <button data-quick="FABIAN RUBIO">Fabián Rubio</button>
-          <button data-quick="VALENTINA">Valentina</button>
+        <div class="search-tools">
+          <button id="liveOnlyBtn" class="tool-btn" type="button">Solo en vivo ahora</button>
+          <button id="shareBtn" class="tool-btn tool-btn-secondary" type="button">Compartir este filtro</button>
         </div>
+
+      </div>
+
+      <div class="day-wrap">
+        <div class="day-tabs" id="dayTabs"></div>
       </div>
 
       <div class="tabs-wrap">
@@ -84,10 +93,10 @@
     <section class="panel">
       <div class="panel-head">
         <h2 class="panel-title">Resultados y salidas</h2>
-        <div class="chip" id="countResults">0 visibles</div>
       </div>
 
       <div class="results-area">
+        <div class="live-panel" id="livePanel"></div>
         <p class="lead">Resultado filtrado con <strong>hora oficial de inicio del heat</strong> incluida desde el cronograma.</p>
 
         <div id="cards" class="cards">
@@ -115,16 +124,6 @@
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div class="top-wrap">
-        <details class="top">
-          <summary>
-            <span>Top 3 boxes</span>
-            <span class="summary-link">desplegar</span>
-          </summary>
-          <div id="topBoxes" class="top-list"></div>
-        </details>
       </div>
     </section>
 

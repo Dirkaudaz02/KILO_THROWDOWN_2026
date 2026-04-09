@@ -4,9 +4,11 @@ const THEME_KEY = "kilo-speedway-theme";
 const state = {
   rows: [],
   event: "ALL",
+  day: "ALL",
   search: "",
   category: "ALL",
   box: "ALL",
+  liveOnly: false,
   sort: "time",
   sortDir: "asc"
 };
@@ -20,12 +22,13 @@ const el = {
   boxSelect: $("#boxSelect"),
   sortSelect: $("#sortSelect"),
   clearBtn: $("#clearBtn"),
+  liveOnlyBtn: $("#liveOnlyBtn"),
+  shareBtn: $("#shareBtn"),
+  dayTabs: $("#dayTabs"),
   eventTabs: $("#eventTabs"),
+  livePanel: $("#livePanel"),
   cards: $("#cards"),
-  tableBody: $("#tableBody"),
-  countSearch: $("#countSearch"),
-  countResults: $("#countResults"),
-  topBoxes: $("#topBoxes")
+  tableBody: $("#tableBody")
 };
 
 const normalize = (v="") =>
@@ -44,6 +47,169 @@ function parseHoraToMs(txt=""){
   if(ampm.toLowerCase()==="pm" && h!==12) h += 12;
   if(ampm.toLowerCase()==="am" && h===12) h = 0;
   return new Date(+yy, +mm-1, +dd, h, +min).getTime();
+}
+
+function parseHoraParts(txt=""){
+  const m = String(txt).match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(am|pm)/i);
+  if(!m) return null;
+  let [,dd,mm,yy,hh,min,ampm] = m;
+  let h = parseInt(hh,10);
+  if(ampm.toLowerCase()==="pm" && h!==12) h += 12;
+  if(ampm.toLowerCase()==="am" && h===12) h = 0;
+  return {
+    dd: Number(dd),
+    mm: Number(mm),
+    yy: Number(yy),
+    h,
+    min: Number(min)
+  };
+}
+
+function getDayKey(txt=""){
+  const parts = parseHoraParts(txt);
+  if(!parts) return "unknown";
+  return `${parts.yy}-${String(parts.mm).padStart(2,"0")}-${String(parts.dd).padStart(2,"0")}`;
+}
+
+function getDayLabel(dayKey){
+  if(dayKey === "ALL") return "Todos";
+  const [yy,mm,dd] = dayKey.split("-").map(Number);
+  const date = new Date(yy, mm - 1, dd, 12, 0, 0);
+  const weekday = new Intl.DateTimeFormat("es-CL", { weekday: "long" }).format(date);
+  return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+}
+
+function getHeatKey(row){
+  return [
+    row.hora_heat || "",
+    row.evento || "",
+    row.categoria || "",
+    row.heat || ""
+  ].join("|");
+}
+
+function copyShareUrl(){
+  const url = new URL(window.location.href);
+  const setOrDelete = (key, value, emptyValue="ALL") => {
+    if(!value || value === emptyValue) url.searchParams.delete(key);
+    else url.searchParams.set(key, value);
+  };
+
+  setOrDelete("day", state.day);
+  setOrDelete("event", state.event);
+  setOrDelete("category", state.category);
+  setOrDelete("box", state.box);
+  setOrDelete("sort", state.sort, "time");
+
+  if(state.search) url.searchParams.set("search", state.search);
+  else url.searchParams.delete("search");
+
+  if(state.liveOnly) url.searchParams.set("live", "1");
+  else url.searchParams.delete("live");
+
+  const finalUrl = url.toString();
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(finalUrl).then(() => {
+      el.shareBtn.textContent = "Link copiado";
+      setTimeout(() => {
+        el.shareBtn.textContent = "Compartir este filtro";
+      }, 1800);
+    }).catch(() => {
+      window.prompt("Copia este link", finalUrl);
+    });
+    return;
+  }
+
+  window.prompt("Copia este link", finalUrl);
+}
+
+function syncUrlState(){
+  const url = new URL(window.location.href);
+  const setOrDelete = (key, value, emptyValue="ALL") => {
+    if(!value || value === emptyValue) url.searchParams.delete(key);
+    else url.searchParams.set(key, value);
+  };
+
+  setOrDelete("day", state.day);
+  setOrDelete("event", state.event);
+  setOrDelete("category", state.category);
+  setOrDelete("box", state.box);
+  setOrDelete("sort", state.sort, "time");
+
+  if(state.search) url.searchParams.set("search", state.search);
+  else url.searchParams.delete("search");
+
+  if(state.liveOnly) url.searchParams.set("live", "1");
+  else url.searchParams.delete("live");
+
+  window.history.replaceState({}, "", url);
+}
+
+function hydrateStateFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  state.day = params.get("day") || "ALL";
+  state.event = params.get("event") || "ALL";
+  state.search = params.get("search") || "";
+  state.category = params.get("category") || "ALL";
+  state.box = params.get("box") || "ALL";
+  state.sort = params.get("sort") || "time";
+  state.liveOnly = params.get("live") === "1";
+}
+
+function buildScheduleMeta(rows){
+  const groups = new Map();
+
+  rows.forEach(row => {
+    const key = getHeatKey(row);
+    if(groups.has(key)) return;
+    groups.set(key, {
+      key,
+      hora_heat: row.hora_heat || "",
+      evento: row.evento || "",
+      categoria: row.categoria || "",
+      heat: row.heat || "",
+      lane: row.lane || "",
+      timeMs: parseHoraToMs(row.hora_heat),
+      dayKey: getDayKey(row.hora_heat)
+    });
+  });
+
+  const schedule = [...groups.values()]
+    .filter(item => Number.isFinite(item.timeMs))
+    .sort((a,b) => a.timeMs - b.timeMs || String(a.heat).localeCompare(String(b.heat), "es"));
+
+  schedule.forEach((item, idx) => {
+    const next = schedule[idx + 1];
+    item.endMs = next ? next.timeMs : item.timeMs + 30 * 60 * 1000;
+  });
+
+  return schedule;
+}
+
+function getRowStatus(row){
+  const now = Date.now();
+  const key = getHeatKey(row);
+  const slot = state.schedule.find(item => item.key === key);
+  if(!slot) return "upcoming";
+  if(now >= slot.timeMs && now < slot.endMs) return "live";
+  if(now >= slot.endMs) return "past";
+  return "upcoming";
+}
+
+function renderDayTabs(){
+  const days = ["ALL", ...new Set(state.rows.map(row => getDayKey(row.hora_heat)).filter(Boolean))];
+  el.dayTabs.innerHTML = days.map(day => `
+    <button class="day-tab ${state.day===day ? "active" : ""}" data-day="${day}">
+      ${getDayLabel(day)}
+    </button>
+  `).join("");
+
+  $$(".day-tab").forEach(btn => {
+    btn.onclick = () => {
+      state.day = btn.dataset.day;
+      render();
+    };
+  });
 }
 
 function uniques(key){
@@ -84,13 +250,15 @@ function filteredData(){
   const q = normalize(state.search);
 
   const arr = state.rows.filter(r => {
+    if(state.day !== "ALL" && getDayKey(r.hora_heat) !== state.day) return false;
     if(state.event !== "ALL" && r.evento !== state.event) return false;
     if(state.category !== "ALL" && r.categoria !== state.category) return false;
     if(state.box !== "ALL" && r.box !== state.box) return false;
+    if(state.liveOnly && getRowStatus(r) !== "live") return false;
     if(!q) return true;
 
     const target = [
-      r.atleta1, r.atleta2, r.equipo, r.box, r.evento, r.categoria
+      r.atleta1, r.atleta2, r.equipo, r.box, r.evento, r.categoria, r.lane, r.numero
     ].map(normalize).join(" | ");
 
     return target.includes(q);
@@ -125,6 +293,59 @@ function filteredData(){
   return arr;
 }
 
+function getLiveSummary(rows){
+  const now = Date.now();
+  const visibleKeys = new Set(rows.map(getHeatKey));
+  const relevant = state.schedule.filter(item => visibleKeys.has(item.key));
+
+  const live = relevant.find(item => now >= item.timeMs && now < item.endMs);
+  if(live){
+    return { mode: "live", slot: live };
+  }
+
+  const next = relevant.find(item => item.timeMs > now);
+  if(next){
+    return { mode: "next", slot: next };
+  }
+
+  const last = relevant[relevant.length - 1];
+  if(last){
+    return { mode: "done", slot: last };
+  }
+
+  return null;
+}
+
+function renderLivePanel(rows){
+  const summary = getLiveSummary(rows);
+  if(!summary){
+    el.livePanel.className = "live-panel";
+    el.livePanel.innerHTML = `<div class="live-text">No hay heats visibles con los filtros actuales.</div>`;
+    return;
+  }
+
+  const { mode, slot } = summary;
+  const modeClass = mode === "live" ? "live-now" : "live-next";
+  const kicker = mode === "live" ? "Ahora en vivo" : mode === "next" ? "Próximo heat" : "Jornada terminada";
+  const text = mode === "live"
+    ? "Se destaca según la hora local del dispositivo desde donde se está viendo."
+    : mode === "next"
+      ? "Este será el siguiente bloque visible según la hora local del dispositivo."
+      : "Todos los heats visibles para este día ya pasaron.";
+
+  el.livePanel.className = `live-panel ${modeClass}`;
+  el.livePanel.innerHTML = `
+    <div class="live-kicker">${kicker}</div>
+    <div class="live-title">${slot.evento || "Heat"} · ${slot.heat || "-"}</div>
+    <div class="live-meta">
+      <span class="live-pill">${getDayLabel(slot.dayKey)}</span>
+      <span class="live-pill">${slot.hora_heat || "-"}</span>
+      <span class="live-pill">${slot.categoria || "-"}</span>
+    </div>
+    <div class="live-text">${text}</div>
+  `;
+}
+
 function renderCards(rows){
   if(!rows.length){
     el.cards.innerHTML = `<div class="empty">No se encontraron resultados con esos filtros.</div>`;
@@ -132,11 +353,14 @@ function renderCards(rows){
   }
 
   el.cards.innerHTML = rows.map(r => `
-    <article class="card">
+    <article class="card ${getRowStatus(r)==="past" ? "is-past" : ""} ${getRowStatus(r)==="live" ? "is-live" : ""}">
       <div class="card-top">
         <div class="badges">
           <span class="badge event">${r.evento || "-"}</span>
           <span class="badge heat">${r.heat || "-"}</span>
+          ${getRowStatus(r)==="live" ? `<span class="badge status-live">En vivo</span>` : ""}
+          ${getRowStatus(r)==="past" ? `<span class="badge status-past">Finalizado</span>` : ""}
+          ${getRowStatus(r)==="upcoming" ? `<span class="badge status-next">${getDayLabel(getDayKey(r.hora_heat))}</span>` : ""}
           ${r.box ? `<span class="badge box">${r.box}</span>` : ""}
         </div>
 
@@ -165,7 +389,7 @@ function renderTable(rows){
   }
 
   el.tableBody.innerHTML = rows.map(r => `
-    <tr>
+    <tr class="${getRowStatus(r)==="past" ? "row-past" : ""} ${getRowStatus(r)==="live" ? "row-live" : ""}">
       <td>${r.evento || "-"}</td>
       <td>${r.categoria || "-"}</td>
       <td>${r.heat || "-"}</td>
@@ -180,32 +404,6 @@ function renderTable(rows){
   `).join("");
 }
 
-function renderTopBoxes(rows){
-  const map = {};
-  rows.forEach(r => {
-    const b = String(r.box || "").trim();
-    if(!b) return;
-    map[b] = (map[b] || 0) + 1;
-  });
-
-  const top = Object.entries(map)
-    .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0], "es"))
-    .slice(0,3);
-
-  if(!top.length){
-    el.topBoxes.innerHTML = `<div class="empty">No hay boxes visibles en el resultado actual.</div>`;
-    return;
-  }
-
-  el.topBoxes.innerHTML = top.map(([name,count], idx) => `
-    <div class="top-item">
-      <div class="rank">${idx+1}</div>
-      <div class="top-name">${name}</div>
-      <div class="top-count">${count} atletas/equipos</div>
-    </div>
-  `).join("");
-}
-
 function bindTabEvents(){
   $$(".tab").forEach(btn => {
     btn.onclick = () => {
@@ -217,13 +415,14 @@ function bindTabEvents(){
 
 function render(){
   const rows = filteredData();
-  el.countSearch.textContent = `${rows.length} filas`;
-  el.countResults.textContent = `${rows.length} visibles`;
+  el.liveOnlyBtn.classList.toggle("is-active", state.liveOnly);
+  renderDayTabs();
   renderTabs();
+  renderLivePanel(rows);
   renderCards(rows);
   renderTable(rows);
-  renderTopBoxes(rows);
   bindTabEvents();
+  syncUrlState();
 }
 
 function bindEvents(){
@@ -247,11 +446,22 @@ function bindEvents(){
     render();
   });
 
+  el.liveOnlyBtn.addEventListener("click", () => {
+    state.liveOnly = !state.liveOnly;
+    render();
+  });
+
+  el.shareBtn.addEventListener("click", () => {
+    copyShareUrl();
+  });
+
   el.clearBtn.addEventListener("click", () => {
+    state.day = "ALL";
     state.event = "ALL";
     state.search = "";
     state.category = "ALL";
     state.box = "ALL";
+    state.liveOnly = false;
     state.sort = "time";
     state.sortDir = "asc";
 
@@ -261,19 +471,6 @@ function bindEvents(){
     el.sortSelect.value = "time";
 
     render();
-  });
-
-  $$(".quick button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const q = btn.dataset.quick || btn.textContent.trim();
-      state.search = q;
-      el.searchInput.value = q;
-      render();
-      window.scrollTo({
-        top: el.searchInput.getBoundingClientRect().top + window.scrollY - 84,
-        behavior: "smooth"
-      });
-    });
   });
 
   $$(".theme-btn").forEach(btn => {
@@ -332,12 +529,22 @@ async function loadData(){
     const res = await fetch(DATA_URL);
     if(!res.ok) throw new Error("No se pudo abrir data.json");
     state.rows = await res.json();
+    state.schedule = buildScheduleMeta(state.rows);
+    hydrateStateFromUrl();
 
     initFilters();
+    renderDayTabs();
     renderTabs();
     restoreTheme();
     bindEvents();
+
+    el.searchInput.value = state.search;
+    if([...el.categorySelect.options].some(op => op.value === state.category)) el.categorySelect.value = state.category;
+    if([...el.boxSelect.options].some(op => op.value === state.box)) el.boxSelect.value = state.box;
+    if([...el.sortSelect.options].some(op => op.value === state.sort)) el.sortSelect.value = state.sort;
+
     render();
+    setInterval(render, 60000);
   }catch(err){
     el.cards.innerHTML = `<div class="empty">No se pudo cargar <strong>data.json</strong>. Revisa que el archivo exista y abre el proyecto con servidor local o desde GitHub Pages.</div>`;
     el.tableBody.innerHTML = `<tr><td colspan="10"><div class="empty">No se pudo cargar la data.</div></td></tr>`;
