@@ -1,4 +1,4 @@
-const DATA_URL = "./data.json";
+const DATA_URL = "./data.json?v=20260409c";
 const THEME_KEY = "kilo-speedway-theme";
 
 const state = {
@@ -197,6 +197,7 @@ function getRowStatus(row){
 }
 
 function renderDayTabs(){
+  if(!el.dayTabs) return;
   const days = ["ALL", ...new Set(state.rows.map(row => getDayKey(row.hora_heat)).filter(Boolean))];
   el.dayTabs.innerHTML = days.map(day => `
     <button class="day-tab ${state.day===day ? "active" : ""}" data-day="${day}">
@@ -238,6 +239,7 @@ function initFilters(){
 }
 
 function renderTabs(){
+  if(!el.eventTabs) return;
   const events = ["ALL", ...uniques("evento")];
   el.eventTabs.innerHTML = events.map(evt => `
     <button class="tab ${state.event===evt ? "active" : ""}" data-event="${evt}">
@@ -317,6 +319,7 @@ function getLiveSummary(rows){
 }
 
 function renderLivePanel(rows){
+  if(!el.livePanel) return;
   const summary = getLiveSummary(rows);
   if(!summary){
     el.livePanel.className = "live-panel";
@@ -347,6 +350,7 @@ function renderLivePanel(rows){
 }
 
 function renderCards(rows){
+  if(!el.cards) return;
   if(!rows.length){
     el.cards.innerHTML = `<div class="empty">No se encontraron resultados con esos filtros.</div>`;
     return;
@@ -383,6 +387,7 @@ function renderCards(rows){
 }
 
 function renderTable(rows){
+  if(!el.tableBody) return;
   if(!rows.length){
     el.tableBody.innerHTML = `<tr><td colspan="10"><div class="empty">No se encontraron resultados con esos filtros.</div></td></tr>`;
     return;
@@ -405,6 +410,7 @@ function renderTable(rows){
 }
 
 function bindTabEvents(){
+  if(!el.eventTabs) return;
   $$(".tab").forEach(btn => {
     btn.onclick = () => {
       state.event = btn.dataset.event;
@@ -415,7 +421,7 @@ function bindTabEvents(){
 
 function render(){
   const rows = filteredData();
-  el.liveOnlyBtn.classList.toggle("is-active", state.liveOnly);
+  if(el.liveOnlyBtn) el.liveOnlyBtn.classList.toggle("is-active", state.liveOnly);
   renderDayTabs();
   renderTabs();
   renderLivePanel(rows);
@@ -446,14 +452,18 @@ function bindEvents(){
     render();
   });
 
-  el.liveOnlyBtn.addEventListener("click", () => {
-    state.liveOnly = !state.liveOnly;
-    render();
-  });
+  if(el.liveOnlyBtn){
+    el.liveOnlyBtn.addEventListener("click", () => {
+      state.liveOnly = !state.liveOnly;
+      render();
+    });
+  }
 
-  el.shareBtn.addEventListener("click", () => {
-    copyShareUrl();
-  });
+  if(el.shareBtn){
+    el.shareBtn.addEventListener("click", () => {
+      copyShareUrl();
+    });
+  }
 
   el.clearBtn.addEventListener("click", () => {
     state.day = "ALL";
